@@ -1002,10 +1002,13 @@ if __name__ == "__main__":
             attach_extra_routes(app)
             demo.block_thread()
         else:
-            print("Running in Linux/Container environment (using Uvicorn for stability).")
-            # Linux/HF: Use Uvicorn for explicit loop control
+            print("Running in Linux/Colab environment (using share=True for public access).")
+            # Para Colab e Linux, usamos share=True para gerar o link público do Gradio
             app = FastAPI()
             attach_extra_routes(app)
-            # Disable SSR to prevent Node proxying issues on HF Spaces
-            app = gr.mount_gradio_app(app, demo.queue(), path="/", allowed_paths=allowed_dirs, ssr_mode=False)
-            uvicorn.run(app, host="0.0.0.0", port=7860)
+            demo.queue().launch(
+                share=True, 
+                allowed_paths=allowed_dirs,
+                server_name="0.0.0.0",
+                server_port=7860
+            )
