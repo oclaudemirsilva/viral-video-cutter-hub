@@ -215,7 +215,7 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
                      use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
                      h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target, ai_hook,
                      watermark_file, watermark_opacity, watermark_position, watermark_scale,
-                     enable_broll, style_refs, broll_frequency):
+                     enable_broll, style_refs, broll_frequency, colab_mode):
     
     global current_process
 
@@ -337,6 +337,9 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
             cmd.extend(["--style-refs", ref_paths])
         cmd.extend(["--broll-frequency", str(int(broll_frequency))])
 
+    if colab_mode:
+        cmd.append("--colab")
+        
     cmd.append("--skip-prompts") # Always skip prompts in WebUI to prevent freezing
 
     if use_custom_subs:
@@ -670,6 +673,9 @@ with gr.Blocks(title=i18n("ViralVideoCutterHub WebUI"), theme=gr.themes.Default(
                 enable_broll_input = gr.Checkbox(label=i18n("Enable IA B-Roll Overlay"), value=False)
                 style_refs_input = gr.File(label=i18n("Style Reference Images"), file_count="multiple", file_types=["image"])
                 broll_frequency_input = gr.Slider(label=i18n("B-Roll Frequency (Images per Clip)"), minimum=0, maximum=3, value=1, step=1)
+             
+             with gr.Accordion("Cloud & Colab", open=True):
+                colab_mode_input = gr.Checkbox(label=i18n("Colab Mode (Save to Google Drive)"), value=False)
 
              with gr.Row():
                  start_btn = gr.Button(i18n("Start Processing"), variant="primary")
@@ -723,7 +729,7 @@ with gr.Blocks(title=i18n("ViralVideoCutterHub WebUI"), theme=gr.themes.Default(
                  underline_input, strikeout_input, border_style_input, remove_punc_input,
                  video_quality_input, use_youtube_subs_input, translate_input, ai_hook_input,
                  watermark_input, watermark_opacity_input, watermark_position_input, watermark_scale_input,
-                enable_broll_input, style_refs_input, broll_frequency_input
+                enable_broll_input, style_refs_input, broll_frequency_input, colab_mode_input
              ], outputs=[logs_output, start_btn, stop_btn, results_html])
 
 
