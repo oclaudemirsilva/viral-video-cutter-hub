@@ -12,6 +12,8 @@ VIRALS/
 output/
 temp/
 last_settings.json
+api_config.json
+*.log
 *.mp4
 *.mkv
 *.webm
