@@ -153,8 +153,21 @@ def main():
     parser.add_argument("--enable-broll", action="store_true", help=i18n("Enable AI B-roll generation and overlay"))
     parser.add_argument("--style-refs", help=i18n("Comma-separated paths to style reference images"))
     parser.add_argument("--broll-frequency", type=int, default=1, help=i18n("Number of B-roll images per clip"))
+    parser.add_argument("--colab", action="store_true", help=i18n("Enable Google Colab mode (Saves results to Drive)"))
 
     args = parser.parse_args()
+    
+    # Base folder for projects
+    BASE_VIRALS_FOLDER = "VIRALS"
+    if args.colab:
+        BASE_VIRALS_FOLDER = "/content/drive/MyDrive/ViralVideoCutterHub_Results"
+        if not os.path.exists(BASE_VIRALS_FOLDER):
+            try:
+                os.makedirs(BASE_VIRALS_FOLDER, exist_ok=True)
+                print(i18n("Colab Mode: Created results folder in Google Drive: {}").format(BASE_VIRALS_FOLDER))
+            except Exception as e:
+                print(f"Warning: Could not create Drive folder ({e}). Using local VIRALS folder.")
+                BASE_VIRALS_FOLDER = "VIRALS"
     
     # Workflow Logic
     workflow_choice = args.workflow
@@ -206,7 +219,7 @@ def main():
     
     if not url and not input_video:
         # Usuário apertou Enter (Vazio) -> Tentar pegar último projeto
-        base_virals = "VIRALS"
+        base_virals = BASE_VIRALS_FOLDER
         if os.path.exists(base_virals):
             subdirs = [os.path.join(base_virals, d) for d in os.listdir(base_virals) if os.path.isdir(os.path.join(base_virals, d))]
             if subdirs:
@@ -219,10 +232,10 @@ def main():
                     print(i18n("Latest project found but 'input.mp4' is missing."))
                     sys.exit(1)
             else:
-                print(i18n("No existing projects found in VIRALS folder."))
+                print(i18n("No existing projects found in {} folder.").format(BASE_VIRALS_FOLDER))
                 sys.exit(1)
         else:
-             print(i18n("VIRALS folder not found. Cannot load latest project."))
+             print(i18n("{} folder not found. Cannot load latest project.").format(BASE_VIRALS_FOLDER))
              sys.exit(1)
 
     # -------------------------------------------------------------------------
