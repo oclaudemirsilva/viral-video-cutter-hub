@@ -9,7 +9,7 @@ The transcript below is a continuous text stream with embedded **Time Tags** lik
 - These tags represent the approximate timestamp of the *preceding* text.
 - Use them to calculate duration. Duration = (End Tag - Start Tag).
 
-### STRICT VIRAL RULES (The "ViralCutter Standard"):
+### STRICT VIRAL RULES (The "ViralVideoCutterHub Standard"):
 1.  **NO "GARBAGE" STARTS:**
     -   NEVER start with filler words ("Um", "Uh", "So...", "And then").
     -   NEVER start with low-energy intros ("Hi guys, welcome back").
@@ -21,7 +21,11 @@ The transcript below is a continuous text stream with embedded **Time Tags** lik
     -   Can this segment be shown to a stranger without ANY context?
     -   If it contains "That's why *he* said that" (and "he" is unknown), it FAILS. Eliminate or expand context.
 
-3.  **NARRATIVE ARC:**
+3.  **HOOK CONTEXT (CURIOSITY):**
+    -   Prioritize segments that start with questions, counter-intuitive statements, or "How to" value.
+    -   *Examples:* "O erro que todo mundo comete...", "Você sabia que...?", "Eu descobri o segredo de...".
+
+4.  **NARRATIVE ARC:**
     -   **Start:** Hook (0-3s).
     -   **Middle:** Value/Story (Retain attention).
     -   **End:** Punchline/Conclusion (Satisfying ending). NEVER cut mid-sentence.

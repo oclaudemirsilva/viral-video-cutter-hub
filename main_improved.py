@@ -26,6 +26,9 @@ from scripts import (
     organize_output,
     translate_json,
 )
+import re
+from utils.hook_generator import HookGenerator
+from style_hub.engine import StyleEngine
 from i18n.i18n import I18nAuto
 
 # Inicializa sistema de tradução
@@ -100,7 +103,7 @@ def interactive_input_int(prompt_text):
 
 def main():
     # Configuração de Argumentos via Linha de Comando (CLI)
-    parser = argparse.ArgumentParser(description="ViralCutter CLI")
+    parser = argparse.ArgumentParser(description="ViralVideoCutterHub CLI")
     parser.add_argument("--url", help="YouTube Video URL")
     parser.add_argument("--segments", type=int, help="Number of segments to create")
     parser.add_argument("--viral", action="store_true", help="Enable viral mode")
@@ -138,6 +141,18 @@ def main():
     parser.add_argument("--video-quality", choices=["best", "1080p", "720p", "480p"], default="best", help="Video download quality")
     parser.add_argument("--skip-youtube-subs", action="store_true", help="Skip downloading YouTube subtitles")
     parser.add_argument("--translate-target", help="Target language code for subtitle translation (e.g. 'pt', 'en').")
+    parser.add_argument("--ai-hook", action="store_true", help=i18n("Generate AI voice hooks for clips"))
+    
+    # Watermark Arguments
+    parser.add_argument("--watermark", help=i18n("Path to watermark image (optional)"))
+    parser.add_argument("--watermark-opacity", type=float, default=0.5, help=i18n("Watermark opacity (0.0 - 1.0)"))
+    parser.add_argument("--watermark-position", default="ne", choices=["nw", "ne", "sw", "se", "center"], help=i18n("Watermark position"))
+    parser.add_argument("--watermark-scale", type=float, default=0.15, help=i18n("Scale relative to video width (0.01 - 1.0)"))
+
+    # Style Engine Arguments
+    parser.add_argument("--enable-broll", action="store_true", help=i18n("Enable AI B-roll generation and overlay"))
+    parser.add_argument("--style-refs", help=i18n("Comma-separated paths to style reference images"))
+    parser.add_argument("--broll-frequency", type=int, default=1, help=i18n("Number of B-roll images per clip"))
 
     args = parser.parse_args()
     
@@ -646,6 +661,111 @@ def main():
             try:
                 adjust_subtitles.adjust(project_folder=project_folder, **sub_config)
                 burn_subtitles.burn(project_folder=project_folder)
+                
+                # --- AI Hook Integration ---
+                if args.ai_hook:
+                    print(i18n("🎨 Gerando Hooks com Voz de IA (Opção Ativada)..."))
+                    try:
+                        hook_gen = HookGenerator()
+                        burned_folder = os.path.join(project_folder, "burned_sub")
+                        # Get segment titles/hooks from processed segments
+                        segments_list = (viral_segments.get("segments", []) if viral_segments else []) if 'viral_segments' in locals() else []
+                        
+                        if os.path.exists(burned_folder):
+                            for vid_file in os.listdir(burned_folder):
+                                if vid_file.endswith(".mp4") and not vid_file.startswith("hooked_"):
+                                    # Try to find matching segment
+                                    idx_match = re.search(r'(\d+)', vid_file)
+                                    if idx_match:
+                                        idx = int(idx_match.group(1))
+                                        if idx < len(segments_list):
+                                            hook_text = segments_list[idx].get("hook_text") or segments_list[idx].get("title", "Check this out!")
+                                            input_p = os.path.join(burned_folder, vid_file)
+                                            output_p = os.path.join(burned_folder, f"hooked_tmp_{vid_file}")
+                                            
+                                            print(f"   🪝 Aplicando Hook no clipe {idx}: {vid_file}")
+                                            result_p = hook_gen.process_clip(input_p, hook_text, output_p)
+                                            
+                                            if result_p == output_p:
+                                                # Success: Replace original with hooked version
+                                                os.replace(output_p, input_p)
+                                                print(f"   ✅ Hook aplicado com sucesso: {vid_file}")
+                    except Exception as he:
+                        print(i18n("⚠️ Erro ao gerar hooks: {}").format(he))
+                # ---------------------------
+
+                # --- Watermark Integration ---
+                if args.watermark and os.path.exists(args.watermark):
+                    print(i18n("🍦 Aplicando Marca d'água..."))
+                    try:
+                        burned_folder = os.path.join(project_folder, "burned_sub")
+                        if os.path.exists(burned_folder):
+                            for vid_file in os.listdir(burned_folder):
+                                if vid_file.endswith(".mp4") and not vid_file.startswith("wm_"):
+                                    input_p = os.path.join(burned_folder, vid_file)
+                                    output_p = os.path.join(burned_folder, f"wm_tmp_{vid_file}")
+                                    
+                                    # FFmpeg command for watermark
+                                    pos_map = {
+                                        "nw": "10:10",
+                                        "ne": "main_w-overlay_w-10:10",
+                                        "sw": "10:main_h-overlay_h-10",
+                                        "se": "main_w-overlay_w-10:main_h-overlay_h-10",
+                                        "center": "(main_w-overlay_w)/2:(main_h-overlay_h)/2"
+                                    }
+                                    overlay_pos = pos_map.get(args.watermark_position, "main_w-overlay_w-10:10")
+                                    
+                                    # Scale watermark and set opacity
+                                    filter_complex = f"[1:v]format=rgba,colorchannelmixer=aa={args.watermark_opacity}[logo];[logo][0:v]scale2ref=w=iw*{args.watermark_scale}:h=ow/mdar[logo_scaled][main];[main][logo_scaled]overlay={overlay_pos}"
+                                    
+                                    cmd = [
+                                        "ffmpeg", "-y", "-i", input_p, "-i", args.watermark,
+                                        "-filter_complex", filter_complex,
+                                        "-codec:a", "copy", output_p
+                                    ]
+                                    
+                                    res = subprocess.run(cmd, capture_output=True, text=True)
+                                    if res.returncode == 0:
+                                        os.replace(output_p, input_p)
+                                        print(f"   ✅ Marca d'água aplicada: {vid_file}")
+                                    else:
+                                        print(f"   ❌ Erro na marca d'água ({vid_file}): {res.stderr}")
+                    except Exception as we:
+                        print(i18n("⚠️ Erro ao aplicar marca d'água: {}").format(we))
+                # ---------------------------
+
+                # --- Style Engine (B-Roll) Integration ---
+                if args.enable_broll:
+                    print(i18n("🎨 Gerando B-Roll com Motor de Estilo (Opção Ativada)..."))
+                    try:
+                        style_eng = StyleEngine(project_folder=project_folder)
+                        
+                        # Analyze style
+                        if args.style_refs:
+                            ref_list = args.style_refs.split(",")
+                            style_eng.analyze_references(ref_list)
+                        
+                        # Get viral segments
+                        segments_data = viral_segments if 'viral_segments' in locals() else None
+                        if segments_data:
+                            broll_plan = style_eng.generate_image_prompts(segments_data)
+                            
+                            burned_folder = os.path.join(project_folder, "burned_sub")
+                            if os.path.exists(burned_folder):
+                                print(i18n("🎬 Aplicando B-Roll nos clipes..."))
+                                for vid_file in os.listdir(burned_folder):
+                                    if vid_file.endswith(".mp4"):
+                                        idx_match = re.search(r'(\d+)', vid_file)
+                                        if idx_match:
+                                            idx = int(idx_match.group(1))
+                                            input_p = os.path.join(burned_folder, vid_file)
+                                            # Apply overlays (this will generate mock images if no API set)
+                                            style_eng.process_broll_for_clip(input_p, idx, broll_plan)
+                            
+                            print(i18n("✅ B-Roll application completed."))
+                    except Exception as se:
+                        print(i18n("⚠️ Erro no Motor de Estilo: {}").format(se))
+                # ---------------------------
             except FileNotFoundError as fnf_error:
                 print(i18n("\n[ERROR] Subtitle processing failed: {}").format(str(fnf_error)))
                 print(i18n("Tip: If you are using Workflow 3 (Subtitles Only), ensure the 'subs' folder exists and contains valid JSON files."))
@@ -712,6 +832,30 @@ def main():
         except Exception as e:
             print(i18n("Error saving configuration JSON: {}").format(e))
         # -------------------------------------
+
+        # --- Export SEO Metadata ---
+        try:
+            seo_content = f"=== SEO METADATA FOR PROJECT: {os.path.basename(project_folder)} ===\n\n"
+            segments_list = (viral_segments.get("segments", []) if viral_segments else []) if 'viral_segments' in locals() else []
+            
+            for i, seg in enumerate(segments_list):
+                title = seg.get("title", f"Clip {i}")
+                hook = seg.get("hook_text", "")
+                desc = seg.get("description", "")
+                
+                seo_content += f"--- CLIP {i:03d} ---\n"
+                seo_content += f"TITLE: {title}\n"
+                if hook: seo_content += f"HOOK: {hook}\n"
+                if desc: seo_content += f"DESCRIPTION: {desc}\n"
+                seo_content += "\n"
+            
+            seo_path = os.path.join(project_folder, "seo_metadata.txt")
+            with open(seo_path, "w", encoding="utf-8") as f:
+                f.write(seo_content)
+            print(i18n("SEO Metadata exported to: {}").format(seo_path))
+        except Exception as seoe:
+            print(i18n("Error exporting SEO metadata: {}").format(seoe))
+        # ---------------------------
 
         print(i18n("Process completed! Check your results in: {}").format(project_folder))
 

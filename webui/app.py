@@ -23,6 +23,10 @@ MAIN_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 WORKING_DIR = os.path.dirname(MAIN_SCRIPT_PATH)
 sys.path.append(WORKING_DIR)
 
+# --- CONFIGURAÇÕES DO HUB ---
+PROJECT_NAME = "ViralVideoCutterHub"
+# -----------------------------
+
 from i18n.i18n import I18nAuto
 i18n = I18nAuto()
 
@@ -39,17 +43,45 @@ EXPERIMENTAL_PRESETS = {
     "Active Speaker (Balanced)": {"focus": True, "mar": 0.03, "score": 1.5, "motion": True, "motion_th": 3.0, "motion_sens": 0.05, "decay": 2.0},
     "Active Speaker (Sensitive)": {"focus": True, "mar": 0.02, "score": 1.0, "motion": True, "motion_th": 2.0, "motion_sens": 0.10, "decay": 1.0},
     "Active Speaker (Stable)": {"focus": True, "mar": 0.05, "score": 2.5, "motion": False, "motion_th": 5.0, "motion_sens": 0.02, "decay": 3.0},
+    "Active Speaker (User Optimized)": {"focus": True, "mar": 0.03, "score": 2.0, "motion": True, "motion_th": 3.0, "motion_sens": 0.10, "decay": 2.0},
 }
 # ---------------------------
 
 VIRALS_DIR = os.path.join(WORKING_DIR, "VIRALS")
 MODELS_DIR = os.path.join(WORKING_DIR, "models")
+SETTINGS_PATH = os.path.join(WORKING_DIR, "last_settings.json")
+
+# --- LÓGICA DE SINCRONISMO COLAB (GOOGLE DRIVE) ---
+IS_COLAB = "--colab" in sys.argv
+if IS_COLAB:
+    DRIVE_PATH = "/content/drive/MyDrive/ViralVideoCutterHub_Results"
+    if os.path.exists("/content/drive/MyDrive"):
+        VIRALS_DIR = DRIVE_PATH
+        print(f"Sincronismo Colab ATIVO: Resultados serão salvos no Google Drive: {VIRALS_DIR}")
+    else:
+        print("Google Drive não detectado. Redirecionando para pasta temporária do Colab.")
 
 # Ensure directories exist
 if not os.path.exists(VIRALS_DIR):
     os.makedirs(VIRALS_DIR, exist_ok=True)
 if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR, exist_ok=True)
+
+def load_last_settings():
+    if os.path.exists(SETTINGS_PATH):
+        try:
+            with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_last_settings(settings):
+    try:
+        with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        print(f"Error saving last settings: {e}")
 
 # Global variables
 current_process = None
@@ -181,9 +213,25 @@ def apply_experimental_preset(preset_name):
 def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode, 
                      face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone, focus_active_speaker, active_speaker_mar, active_speaker_score_diff, include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
                      use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
-                     h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target):
+                     h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target, ai_hook,
+                     watermark_file, watermark_opacity, watermark_position, watermark_scale,
+                     enable_broll, style_refs, broll_frequency):
     
     global current_process
+
+    # --- SALVAR CONFIGURAÇÕES PARA PRÓXIMA SESSÃO ---
+    current_settings = {
+        "segments": segments, "viral": viral, "ai_hook": ai_hook, "themes": themes, 
+        "min_duration": min_duration, "max_duration": max_duration, 
+        "ai_backend": ai_backend, "whisper_model": model, 
+        "workflow": workflow, "face_model": face_model, "face_mode": face_mode, 
+        "face_detect_interval": face_detect_interval, "no_face_mode": no_face_mode,
+        "video_quality": video_quality, "use_youtube_subs": use_youtube_subs,
+        "translate_target": translate_target,
+        "watermark_opacity": watermark_opacity, "watermark_position": watermark_position, "watermark_scale": watermark_scale,
+        "enable_broll": enable_broll, "broll_frequency": broll_frequency
+    }
+    save_last_settings(current_settings)
     yield "", gr.update(value=i18n("Running..."), interactive=False), gr.update(visible=True), None 
 
     cmd = [sys.executable, MAIN_SCRIPT_PATH]
@@ -235,6 +283,7 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
     
     cmd.extend(["--segments", str(int(segments))])
     if viral: cmd.append("--viral")
+    if ai_hook: cmd.append("--ai-hook")
     if themes: cmd.extend(["--themes", themes])
     cmd.extend(["--min-duration", str(int(min_duration))])
     cmd.extend(["--max-duration", str(int(max_duration))])
@@ -271,6 +320,22 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
         if active_speaker_motion_threshold is not None: cmd.extend(["--active-speaker-motion-threshold", str(active_speaker_motion_threshold)])
         if active_speaker_motion_sensitivity is not None: cmd.extend(["--active-speaker-motion-sensitivity", str(active_speaker_motion_sensitivity)])
         if active_speaker_decay is not None: cmd.extend(["--active-speaker-decay", str(active_speaker_decay)])
+
+    if ai_hook: cmd.append("--ai-hook")
+    
+    if watermark_file:
+        cmd.extend(["--watermark", watermark_file])
+        cmd.extend(["--watermark-opacity", str(watermark_opacity)])
+        cmd.extend(["--watermark-position", watermark_position])
+        cmd.extend(["--watermark-scale", str(watermark_scale)])
+
+    if enable_broll:
+        cmd.append("--enable-broll")
+        if style_refs:
+            # gr.File with multiple=True returns a list of paths
+            ref_paths = ",".join([f if isinstance(f, str) else f.name for f in style_refs])
+            cmd.extend(["--style-refs", ref_paths])
+        cmd.extend(["--broll-frequency", str(int(broll_frequency))])
 
     cmd.append("--skip-prompts") # Always skip prompts in WebUI to prevent freezing
 
@@ -386,7 +451,10 @@ footer {visibility: hidden}
 
 import header
 
-with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_hue="orange", neutral_hue="slate"), css=css) as demo:
+# --- CARREGAR CONFIGURAÇÕES ---
+last_s = load_last_settings()
+
+with gr.Blocks(title=i18n("ViralVideoCutterHub WebUI"), theme=gr.themes.Default(primary_hue="orange", neutral_hue="slate"), css=css) as demo:
     gr.Markdown(header.badges)
     gr.Markdown(header.description)
     with gr.Tabs():
@@ -399,9 +467,9 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
                     
                     with gr.Row():
-                        video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value="best")
-                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value="None")
-                        use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=True, info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
+                        video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=last_s.get("video_quality", "best"))
+                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=last_s.get("translate_target", "None"))
+                        use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=last_s.get("use_youtube_subs", True), info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
 
                     project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
                     
@@ -417,16 +485,17 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     
                     
                     with gr.Row():
-                        segments_input = gr.Number(label=i18n("Segments"), value=3, precision=0)
-                        viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=True)
-                    themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), visible=False)
+                        segments_input = gr.Number(label=i18n("Segments"), value=last_s.get("segments", 3), precision=0)
+                        viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=last_s.get("viral", True))
+                        ai_hook_input = gr.Checkbox(label=i18n("AI Hook (Voice)"), value=last_s.get("ai_hook", False), info=i18n("Creates an intro with AI voice and text."))
+                    themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), value=last_s.get("themes", ""), visible=False)
                     viral_input.change(lambda x: gr.update(visible=not x), viral_input, themes_input)
                     with gr.Row():
-                        min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=15)
-                        max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=90)
+                        min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=last_s.get("min_duration", 15))
+                        max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=last_s.get("max_duration", 90))
                 with gr.Column(scale=1):
                     with gr.Row():
-                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("G4F"), "g4f"), (i18n("Local (GGUF)"), "local"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value="gemini", scale=2)
+                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("G4F"), "g4f"), (i18n("Local (GGUF)"), "local"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=last_s.get("ai_backend", "gemini"), scale=2)
                         api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", scale=3)
                     
                     # New Dynamic Inputs
@@ -476,14 +545,14 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     refresh_models_btn.click(refresh_local_models, outputs=ai_model_input)
                     ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, refresh_models_btn, chunk_size_input])
 
-                    model_input = gr.Dropdown(["tiny", "small", "medium", "large", "large-v1", "large-v2", "large-v3", "turbo", "large-v3-turbo", "distil-large-v2", "distil-medium.en", "distil-small.en", "distil-large-v3"], label=i18n("Whisper Model"), value="large-v3-turbo")
+                    model_input = gr.Dropdown(["tiny", "small", "medium", "large", "large-v1", "large-v2", "large-v3", "turbo", "large-v3-turbo", "distil-large-v2", "distil-medium.en", "distil-small.en", "distil-large-v3"], label=i18n("Whisper Model"), value=last_s.get("whisper_model", "large-v3-turbo"))
                     with gr.Row():
-                        workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value="Full")
-                        face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value="insightface")
+                        workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value=last_s.get("workflow", "Full"))
+                        face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value=last_s.get("face_model", "insightface"))
                     with gr.Row():
-                        face_mode_input = gr.Dropdown(choices=[(i18n("Auto"), "auto"), ("1", "1"), ("2", "2")], label=i18n("Face Mode"), value="auto")
-                        face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value="0.17,1.0")
-                        no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value="zoom")
+                        face_mode_input = gr.Dropdown(choices=[(i18n("Auto"), "auto"), ("1", "1"), ("2", "2")], label=i18n("Face Mode"), value=last_s.get("face_mode", "1"))
+                        face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=last_s.get("face_detect_interval", "0.17,1.0"))
+                        no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value=last_s.get("no_face_mode", "zoom"))
                     
                     
                     # Update listeners now that all components are defined
@@ -500,8 +569,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                  face_preset_input.change(apply_face_preset, inputs=face_preset_input, outputs=[face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input])
 
                  with gr.Accordion(i18n("Experimental: Active Speaker & Motion"), open=False):
-                        experimental_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in EXPERIMENTAL_PRESETS.keys()], label=i18n("Configuration Presets"), value="Default (Off)", interactive=True)
-                        focus_active_speaker_input = gr.Checkbox(label=i18n("Experimental: Focus on Speaker"), value=False, info=i18n("Tries to focus only on the speaking person instead of split screen."))
+                        experimental_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in EXPERIMENTAL_PRESETS.keys()], label=i18n("Configuration Presets"), value="Active Speaker (User Optimized)", interactive=True)
+                        focus_active_speaker_input = gr.Checkbox(label=i18n("Experimental: Focus on Speaker"), value=True, info=i18n("Tries to focus only on the speaking person instead of split screen."))
                         with gr.Row():
                             active_speaker_mar_input = gr.Slider(label=i18n("MAR Threshold (Mouth Open)"), minimum=0.01, maximum=0.20, value=0.03, step=0.005, info=i18n("Mouth open sensitivity."))
                             active_speaker_score_diff_input = gr.Slider(label=i18n("Score Difference"), minimum=0.5, maximum=10.0, value=1.5, step=0.5, info=i18n("Minimum difference to focus on 1 face."))
@@ -515,6 +584,13 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                             active_speaker_decay_input = gr.Slider(label=i18n("Switch Speed"), minimum=0.5, maximum=5.0, value=2.0, step=0.5, info=i18n("Speed to lose focus."))
 
                         experimental_preset_input.change(apply_experimental_preset, inputs=experimental_preset_input, outputs=[focus_active_speaker_input, active_speaker_mar_input, active_speaker_score_diff_input, include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input])
+             with gr.Accordion(i18n("Watermark Settings"), open=False):
+                watermark_input = gr.File(label=i18n("Upload Watermark (Logo)"), file_types=["image"])
+                with gr.Row():
+                    watermark_opacity_input = gr.Slider(label=i18n("Watermark Opacity"), minimum=0.0, maximum=1.0, value=last_s.get("watermark_opacity", 0.5), step=0.1)
+                    watermark_position_input = gr.Dropdown(choices=[(i18n("Top Left"), "nw"), (i18n("Top Right"), "ne"), (i18n("Bottom Left"), "sw"), (i18n("Bottom Right"), "se"), (i18n("Center"), "center")], label=i18n("Watermark Position"), value=last_s.get("watermark_position", "ne"))
+                watermark_scale_input = gr.Slider(label=i18n("Watermark Scale"), minimum=0.05, maximum=0.5, value=last_s.get("watermark_scale", 0.15), step=0.01)
+
              with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False):
                 preset_input = gr.Dropdown(choices=[(i18n("Manual"), "Manual")] + [(i18n(k), k) for k in subs.SUBTITLE_PRESETS.keys()], label=i18n("Quick Presets"), value="Hormozi (Classic)")
                 use_custom_subs = gr.Checkbox(label=i18n("Enable Subtitle Customization (Includes Preset)"), value=True)
@@ -588,6 +664,12 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                 # Initial load
                 demo.load(subs.generate_preview_html, inputs=manual_inputs, outputs=preview_html)
                 demo.load(subs.apply_preset, inputs=[preset_input], outputs=manual_inputs) # Apply default preset on load
+             
+             with gr.Accordion(i18n("Style Hub (IA B-Roll)"), open=False):
+                gr.Markdown(i18n("Upload reference images to define the visual style for AI-generated B-roll."))
+                enable_broll_input = gr.Checkbox(label=i18n("Enable IA B-Roll Overlay"), value=False)
+                style_refs_input = gr.File(label=i18n("Style Reference Images"), file_count="multiple", file_types=["image"])
+                broll_frequency_input = gr.Slider(label=i18n("B-Roll Frequency (Images per Clip)"), minimum=0, maximum=3, value=1, step=1)
 
              with gr.Row():
                  start_btn = gr.Button(i18n("Start Processing"), variant="primary")
@@ -639,7 +721,9 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                  # New Inputs
                  highlight_size_input, words_per_block_input, gap_limit_input, mode_input, 
                  underline_input, strikeout_input, border_style_input, remove_punc_input,
-                 video_quality_input, use_youtube_subs_input, translate_input
+                 video_quality_input, use_youtube_subs_input, translate_input, ai_hook_input,
+                 watermark_input, watermark_opacity_input, watermark_position_input, watermark_scale_input,
+                enable_broll_input, style_refs_input, broll_frequency_input
              ], outputs=[logs_output, start_btn, stop_btn, results_html])
 
 

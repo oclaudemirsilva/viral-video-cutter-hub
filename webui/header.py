@@ -46,8 +46,8 @@ badges = """
 description = f"""
 <div style="text-align: center;">
 
-<h1>ViralCutter</h1>
-<p style="font-size: 1.1em; margin-bottom: 20px;">{i18n('Bem-vindo ao ViralCutter! A ferramenta definitiva para transformar vídeos longos em clipes virais com o poder da IA.')}</p>
+<h1>ViralVideoCutterHub</h1>
+<p style="font-size: 1.1em; margin-bottom: 20px;">{i18n('Bem-vindo ao ViralVideoCutterHub! A ferramenta definitiva para transformar vídeos longos em clipes virais com o poder da IA.')}</p>
 
 <div style="display: inline-block; text-align: left; background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
 <p style="margin-bottom: 10px;"><strong>{i18n('Aqui você pode:')}</strong></p>

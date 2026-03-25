@@ -106,6 +106,15 @@ def generate_ass_from_file(input_path, output_path, project_folder,
 
         for segment in json_data.get('segments', []):
             words = segment.get('words', [])
+            
+            # Fallback: if no word-level timestamps, use the whole segment text
+            if not words and segment.get('text'):
+                words = [{
+                    'word': segment['text'].strip(),
+                    'start': segment['start'],
+                    'end': segment['end']
+                }]
+                
             total_words = len(words)
 
             i = 0

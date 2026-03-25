@@ -6,11 +6,17 @@ import json
 def cut(segments, project_folder="tmp", skip_video=False):
 
     def check_nvenc_support():
-        # ... (unchanged)
         try:
-            result = subprocess.run(["ffmpeg", "-encoders"], capture_output=True, text=True)
-            return "h264_nvenc" in result.stdout
-        except subprocess.CalledProcessError:
+            # First check if nvidia-smi exists to avoid slow ffmpeg tests on non-NVIDIA
+            subprocess.run(["nvidia-smi"], capture_output=True, check=True)
+            # Then try a 1-frame test encoding to be absolutely sure
+            test_cmd = [
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.1",
+                "-c:v", "h264_nvenc", "-f", "null", "-"
+            ]
+            subprocess.run(test_cmd, capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     def generate_segments(response, project_folder, skip_video):
@@ -90,6 +96,17 @@ def cut(segments, project_folder="tmp", skip_video=False):
                     h, m, s = str(start_time).split(':')
                     start_time_seconds = int(h) * 3600 + int(m) * 60 + float(s)
                     start_time_str = str(start_time)
+
+            # --- SMART PADDING ---
+            # Give -0.2s at start and +0.1s at end for natural flow
+            original_start = start_time_seconds
+            start_time_seconds = max(0, start_time_seconds - 0.2)
+            padding_diff = original_start - start_time_seconds
+            duration_seconds = float(duration_seconds) + padding_diff + 0.1
+            
+            start_time_str = f"{start_time_seconds:.3f}"
+            duration_str = f"{duration_seconds:.3f}"
+            # ---------------------
 
             # Título para nome de arquivo
             title = segment.get("title", f"Segment_{i}")

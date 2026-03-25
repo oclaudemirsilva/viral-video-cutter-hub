@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Project Specific
+VIRALS/
+output/
+temp/
+last_settings.json
+*.mp4
+*.mkv
+*.webm
+*.png
+*.jpg
+*.jpeg
+!style_hub/referencias/*.png
+!style_hub/referencias/*.jpg
+
+# OS
+.DS_Store
+Thumbs.db
