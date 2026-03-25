@@ -5,9 +5,12 @@ def setup_colab_sync():
     print("🚀 Inciando configuração do ViralVideoCutterHub para Colab...")
     
     try:
-        from google.colab import drive
-        print("📁 Montando Google Drive...")
-        drive.mount('/content/drive')
+        # No Colab, o mount deve ser feito na célula do notebook.
+        # Este script apenas garante que as pastas existam.
+        print("📁 Verificando Google Drive...")
+        if not os.path.exists('/content/drive'):
+             from google.colab import drive
+             drive.mount('/content/drive')
         
         drive_path = "/content/drive/MyDrive/ViralVideoCutterHub_Results"
         if not os.path.exists(drive_path):
