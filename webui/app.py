@@ -52,14 +52,17 @@ MODELS_DIR = os.path.join(WORKING_DIR, "models")
 SETTINGS_PATH = os.path.join(WORKING_DIR, "last_settings.json")
 
 # --- LÓGICA DE SINCRONISMO COLAB (GOOGLE DRIVE) ---
-IS_COLAB = "--colab" in sys.argv
-if IS_COLAB:
+IS_COLAB_FLAG = "--colab" in sys.argv
+# Auto-detect if in Colab environment even without flag
+IS_COLAB_ENV = os.path.exists("/content") and os.path.isdir("/content")
+
+if IS_COLAB_FLAG or IS_COLAB_ENV:
     DRIVE_PATH = "/content/drive/MyDrive/ViralVideoCutterHub_Results"
     if os.path.exists("/content/drive/MyDrive"):
         VIRALS_DIR = DRIVE_PATH
         print(f"Sincronismo Colab ATIVO: Resultados serão salvos no Google Drive: {VIRALS_DIR}")
     else:
-        print("Google Drive não detectado. Redirecionando para pasta temporária do Colab.")
+        print("⚠️ Aviso: Ambiente Colab detectado, mas Google Drive não está montado. Usando pasta local.")
 
 # Ensure directories exist
 if not os.path.exists(VIRALS_DIR):
