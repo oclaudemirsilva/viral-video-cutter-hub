@@ -675,7 +675,7 @@ with gr.Blocks(title=i18n("ViralVideoCutterHub WebUI"), theme=gr.themes.Default(
                 broll_frequency_input = gr.Slider(label=i18n("B-Roll Frequency (Images per Clip)"), minimum=0, maximum=3, value=1, step=1)
              
              with gr.Accordion("Cloud & Colab", open=True):
-                colab_mode_input = gr.Checkbox(label=i18n("Colab Mode (Save to Google Drive)"), value=False)
+                colab_mode_input = gr.Checkbox(label=i18n("Colab Mode (Save to Google Drive)"), value=True)
 
              with gr.Row():
                  start_btn = gr.Button(i18n("Start Processing"), variant="primary")
